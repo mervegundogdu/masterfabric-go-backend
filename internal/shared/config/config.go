@@ -18,6 +18,12 @@ type Config struct {
 	Kafka     KafkaConfig
 	WebSocket WebSocketConfig
 	Log       LogConfig
+	LLM       LLMConfig
+}
+
+// LLMConfig holds LLM inference server settings.
+type LLMConfig struct {
+	OllamaURL string
 }
 
 // WebSocketConfig holds real-time WebSocket settings.
@@ -149,6 +155,9 @@ func Load() *Config {
 		Log: LogConfig{
 			Level:  envOrDefault("LOG_LEVEL", "info"),
 			Format: envOrDefault("LOG_FORMAT", "json"),
+		},
+		LLM: LLMConfig{
+			OllamaURL: envOrDefault("OLLAMA_URL", "http://localhost:11434"),
 		},
 	}
 }

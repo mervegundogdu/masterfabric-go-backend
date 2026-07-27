@@ -16,6 +16,7 @@ import (
 	auditHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/audit"
 	"github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/health"
 	iamHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/iam"
+	llmHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/llm"
 	realtimeHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/realtime"
 	tenantHandler "github.com/masterfabric-go/masterfabric/internal/infrastructure/http/handler/tenant"
 
@@ -54,6 +55,7 @@ type Dependencies struct {
 	APIMgmtHandler  *apimgmtHandler.Handler
 	AuditHandler    *auditHandler.Handler
 	RealtimeHandler *realtimeHandler.Handler
+	LLMHandler      *llmHandler.Handler
 
 	// Gateway
 	GatewayPipeline *gateway.Pipeline
@@ -98,6 +100,14 @@ func New(deps Dependencies) *chi.Mux {
 				_, _ = w.Write([]byte(`{"supported_models":[{"id":"gemma-2-2b-it-q4f16_1","name":"Gemma 2 2B WebGPU","type":"LLM"}]}`))
 			})
 		})
+
+		// 1.5. LLM PROXY ENDPOINTS (2 EP)
+		if deps.LLMHandler != nil {
+			r.Route("/llm", func(r chi.Router) {
+				r.Post("/chat/completions", deps.LLMHandler.ChatCompletions)
+				r.Get("/models", deps.LLMHandler.ListModels)
+			})
+		}
 
 		// 2. EXTRA AUTH SUBVIEW ENDPOINTS (6 EP)
 		r.Route("/auth-extended", func(r chi.Router) {
@@ -198,19 +208,17 @@ func New(deps Dependencies) *chi.Mux {
 
 			// Tenant resolution middleware (with workspace support)
 			if deps.OrgRepo != nil {
-				// Note: WorkspaceRepo can be nil - workspace resolution is optional
 				r.Use(middleware.TenantResolverWithWorkspace(deps.OrgRepo, deps.WorkspaceRepo))
 			}
 
-			// WebSocket endpoint (before gateway pipeline — upgrade requests are not HTTP proxy)
-			if deps.RealtimeHandler != nil {
-				r.Get("/ws", deps.RealtimeHandler.Connect)
-			}
-
 			// Gateway pipeline (rate limiting, permission enforcement for managed endpoints)
-			// Must be applied before specific routes so it can handle dynamic endpoints
 			if deps.GatewayPipeline != nil {
 				r.Use(deps.GatewayPipeline.Enforce)
+			}
+
+			// WebSocket endpoint (after middleware, before other routes)
+			if deps.RealtimeHandler != nil {
+				r.Get("/ws", deps.RealtimeHandler.Connect)
 			}
 
 			// User routes

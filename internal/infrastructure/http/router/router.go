@@ -1,6 +1,7 @@
 package router
 
 import (
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -159,7 +160,10 @@ func New(deps Dependencies) *chi.Mux {
 			})
 			r.Post("/feedback", func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"status":"captured"}`))
+				body, _ := io.ReadAll(r.Body)
+				slog.Info("feedback captured", "body", string(body))
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"status":"captured","message":"Feedback recorded successfully"}`))
 			})
 			r.Delete("/logs/clear", func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
